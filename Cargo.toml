@@ -1,0 +1,15 @@
+[package]
+name = "LockBox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.9.0"
+serde = { version = "1.0.217", features = ["derive"]}
+serde_json = "1.0.138"
+dotenv = "0.15.0"
+tokio = {version = "1.43.0", features = ["full"]}
+sea-orm = { version = "1.1.4", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros", "with-uuid"]}
+log = "0.4.25"
+argon2-async = "0.2.0"
+tokio-retry = "0.3.0"
