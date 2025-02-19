@@ -1,10 +1,14 @@
+use actix_jwt_auth_middleware::{AuthError, AuthResult, TokenSigner};
 use actix_web::{web, HttpResponse};
+use jwt_compact::alg::Hs256;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, IntoActiveModel};
 use sea_orm::ActiveValue::Set;
 use crate::dtos::user_dto::{UserLogin, UserResponse};
 use crate::entities::users;
 use log::info;
+use crate::services::auth_service::{Role, UserClaims};
 use crate::services::hash_service;
+
 
 pub async fn create_user(
     db: web::Data<DatabaseConnection>,
@@ -51,7 +55,11 @@ pub async fn get_user(db: web::Data<DatabaseConnection>, user_id: web::Path<i64>
     }
 }
 
-pub async fn login(db: web::Data<DatabaseConnection>, user_login: web::Json<UserLogin>) -> HttpResponse {
+pub async fn login(
+    db: web::Data<DatabaseConnection>,
+    user_login: web::Json<UserLogin>,
+    token_signer: web::Data<TokenSigner<UserClaims, Hs256>>
+) -> AuthResult<HttpResponse> {
     let db = db.get_ref();
 
     let user_result = users::Entity::find()
@@ -61,15 +69,27 @@ pub async fn login(db: web::Data<DatabaseConnection>, user_login: web::Json<User
 
     match user_result {
         Ok(Some(user)) => {
-            if user.is_deleted { return HttpResponse::Unauthorized().finish(); }
+            if user.is_deleted { return Err(AuthError::NoTokenSigner); }
+            
+            let user_claim: UserClaims = UserClaims {
+                id: user.id,
+                role: Role::RegisteredUser
+            };
+            
             match hash_service::verify_password(&user_login.password, &user.password.unwrap()).await {
-                Ok(true) => HttpResponse::Ok().finish(),
-                Err(error) => error,
-                _ => HttpResponse::Unauthorized().finish(),
+                Ok(true) => {                                       
+                    Ok(HttpResponse::Ok()
+                        .cookie(token_signer.create_access_cookie(&user_claim)?)
+                        .cookie(token_signer.create_refresh_cookie(&user_claim)?)
+                        .finish()
+                    )
+                },
+                Err(_) => Err(AuthError::NoTokenSigner),
+                _ => Err(AuthError::NoTokenSigner),
             }
         },
-        Ok(None) => HttpResponse::Unauthorized().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Ok(None) => Err(AuthError::NoTokenSigner),
+        Err(_) => Err(AuthError::NoTokenSigner),
     }
 }
 

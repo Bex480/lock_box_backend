@@ -1,8 +1,11 @@
+use actix_jwt_auth_middleware::TokenSigner;
 use actix_web::{post, get, web, Responder, delete, put};
+use jwt_compact::alg::Hs256;
 use sea_orm::DatabaseConnection;
 use crate::dtos::user_dto::UserLogin;
 use crate::entities::users;
 use crate::services::{hash_service, user_service};
+use crate::services::auth_service::UserClaims;
 use crate::services::user_service::{UserOperation};
 
 pub fn user_routes(cfg: &mut web::ServiceConfig) {
@@ -45,8 +48,12 @@ pub async fn get_user_by_id(
 }
 
 #[post("/users/login")]
-pub async fn login(db: web::Data<DatabaseConnection>, user_login: web::Json<UserLogin>) -> impl Responder {
-    user_service::login(db, user_login).await
+pub async fn login(
+    db: web::Data<DatabaseConnection>, 
+    user_login: web::Json<UserLogin>,
+    token_signer: web::Data<TokenSigner<UserClaims, Hs256>>,
+) -> impl Responder {
+    user_service::login(db, user_login, token_signer).await
 }
 
 #[delete("/users/{id}")]

@@ -13,3 +13,5 @@ sea-orm = { version = "1.1.4", features = ["sqlx-postgres", "runtime-tokio-nativ
 log = "0.4.25"
 argon2-async = "0.2.0"
 tokio-retry = "0.3.0"
+actix-jwt-auth-middleware = "0.5.0"
+jwt-compact = "0.8.0"
