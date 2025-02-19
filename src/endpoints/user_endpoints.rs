@@ -1,11 +1,11 @@
 use actix_jwt_auth_middleware::TokenSigner;
-use actix_web::{post, get, web, Responder, delete, put};
+use actix_web::{post, get, web, Responder, delete, put, HttpResponse};
 use jwt_compact::alg::Hs256;
 use sea_orm::DatabaseConnection;
 use crate::dtos::user_dto::UserLogin;
 use crate::entities::users;
 use crate::services::{hash_service, user_service};
-use crate::services::auth_service::UserClaims;
+use crate::services::auth_service::{Role, UserClaims};
 use crate::services::user_service::{UserOperation};
 
 pub fn user_routes(cfg: &mut web::ServiceConfig) {
@@ -14,10 +14,11 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
         .service(get_user_by_id)
         .service(delete_user)
         .service(restore_user)
-        .service(login);
+        .service(login)
+        .service(admin_login);
 }
 
-#[post("/users")]
+#[post("/users/register")]
 pub async fn register_user(
     db: web::Data<DatabaseConnection>, 
     new_user: web::Json<users::Model>
@@ -35,8 +36,14 @@ pub async fn register_user(
 }
 
 #[get("/users")]
-pub async fn get_all_users(db: web::Data<DatabaseConnection>) -> impl Responder {
-    user_service::get_users(db).await
+pub async fn get_all_users(
+    db: web::Data<DatabaseConnection>,
+    user_claims: UserClaims
+) -> impl Responder {
+    user_service::get_users(db).await;
+
+    //todo
+    HttpResponse::Ok().body(format!("ID: {} Role: {:?}", user_claims.id, user_claims.role))
 }
 
 #[get("/users/{id}")]
@@ -53,7 +60,16 @@ pub async fn login(
     user_login: web::Json<UserLogin>,
     token_signer: web::Data<TokenSigner<UserClaims, Hs256>>,
 ) -> impl Responder {
-    user_service::login(db, user_login, token_signer).await
+    user_service::login(db, user_login, token_signer, Role::RegisteredUser).await
+}
+
+#[post("/admin/login")]
+pub async fn admin_login(
+    db: web::Data<DatabaseConnection>,
+    user_login: web::Json<UserLogin>,
+    token_signer: web::Data<TokenSigner<UserClaims, Hs256>>,
+) -> impl Responder {
+    user_service::login(db, user_login, token_signer, Role::Admin).await
 }
 
 #[delete("/users/{id}")]
