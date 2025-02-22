@@ -1,30 +1,33 @@
 use actix_jwt_auth_middleware::TokenSigner;
-use actix_web::{post, get, web, Responder, delete, put, HttpResponse};
+use actix_web::{post, get, web, Responder};
+use actix_web::middleware::from_fn;
 use jwt_compact::alg::Hs256;
 use sea_orm::DatabaseConnection;
 use crate::dtos::user_dto::UserLogin;
 use crate::entities::users;
 use crate::services::{hash_service, user_service};
-use crate::services::auth_service::{Role, UserClaims};
-use crate::services::user_service::{UserOperation};
+use crate::services::auth_service::{is_registered, Role, UserClaims};
 
 pub fn user_routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(register_user)
-        .service(get_all_users)
-        .service(get_user_by_id)
-        .service(delete_user)
-        .service(restore_user)
-        .service(login)
-        .service(admin_login);
+    cfg.service(
+        web::scope("/users")
+            .service(login)
+            .service(register_user)
+            .service(
+                web::scope("")
+                    .wrap(from_fn(is_registered))
+                    .service(get_current_user)
+            )
+    );
 }
 
-#[post("/users/register")]
+#[post("/register")]
 pub async fn register_user(
     db: web::Data<DatabaseConnection>, 
     new_user: web::Json<users::Model>
 ) -> impl Responder {
     let password = new_user.password.clone();
-    let hashed_password =  match hash_service::hash_password(&password.unwrap()).await {
+    let hashed_password =  match hash_service::hash_password(&password.unwrap_or_default()).await {
         Ok(hashed_password) => hashed_password,
         Err(error) => return error
     };
@@ -35,49 +38,19 @@ pub async fn register_user(
     user_service::create_user(db, web::Json(user)).await
 }
 
-#[get("/users")]
-pub async fn get_all_users(
-    db: web::Data<DatabaseConnection>,
-    user_claims: UserClaims
-) -> impl Responder {
-    user_service::get_users(db).await;
-
-    //todo
-    HttpResponse::Ok().body(format!("ID: {} Role: {:?}", user_claims.id, user_claims.role))
-}
-
-#[get("/users/{id}")]
-pub async fn get_user_by_id(
-    db: web::Data<DatabaseConnection>, 
-    id: web::Path<i64>
-) -> impl Responder {
-    user_service::get_user(db, id).await
-}
-
-#[post("/users/login")]
+#[post("/login")]
 pub async fn login(
-    db: web::Data<DatabaseConnection>, 
+    db: web::Data<DatabaseConnection>,
     user_login: web::Json<UserLogin>,
     token_signer: web::Data<TokenSigner<UserClaims, Hs256>>,
 ) -> impl Responder {
     user_service::login(db, user_login, token_signer, Role::RegisteredUser).await
 }
 
-#[post("/admin/login")]
-pub async fn admin_login(
+#[get("/current")]
+pub async fn get_current_user(
     db: web::Data<DatabaseConnection>,
-    user_login: web::Json<UserLogin>,
-    token_signer: web::Data<TokenSigner<UserClaims, Hs256>>,
+    user_claims: UserClaims
 ) -> impl Responder {
-    user_service::login(db, user_login, token_signer, Role::Admin).await
-}
-
-#[delete("/users/{id}")]
-pub async fn delete_user(db: web::Data<DatabaseConnection>, id: web::Path<i64>) -> impl Responder {
-    user_service::modify_user_state(db, id, UserOperation::Delete).await
-}
-
-#[put("/users/{id}")]
-pub async fn restore_user(db: web::Data<DatabaseConnection>, id: web::Path<i64>) -> impl Responder {
-    user_service::modify_user_state(db, id, UserOperation::Restore).await
+    user_service::get_user(db, user_claims.id).await
 }

@@ -1,4 +1,4 @@
-use actix_jwt_auth_middleware::{AuthError, AuthResult, TokenSigner};
+use actix_jwt_auth_middleware::{ AuthResult, TokenSigner};
 use actix_web::{web, HttpResponse};
 use jwt_compact::alg::Hs256;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, IntoActiveModel};
@@ -34,14 +34,13 @@ pub async fn get_users(db: web::Data<DatabaseConnection>) -> HttpResponse {
     }
 }
 
-pub async fn get_user(db: web::Data<DatabaseConnection>, user_id: web::Path<i64>) -> HttpResponse {
+pub async fn get_user(db: web::Data<DatabaseConnection>, user_id: i64) -> HttpResponse {
     let db = db.get_ref();
-    let user_id = user_id.into_inner();
 
     match users::Entity::find().filter(users::Column::Id.eq(user_id)).one(db).await {
         Ok(Some(user)) => {
             let response = UserResponse {
-                username: user.username.unwrap(),
+                username: user.username.unwrap_or_default(),
                 email: user.email,
             };
             HttpResponse::Ok().json(response)
@@ -73,11 +72,17 @@ pub async fn login(
                 role: user_role,
             };
             
-            match hash_service::verify_password(&user_login.password, &user.password.unwrap()).await {
+            match hash_service::verify_password(&user_login.password, &user.password.unwrap_or_default()).await {
                 Ok(true) => {
+                    let mut access_token = token_signer.create_access_cookie(&user_claim)?;
+                    let mut refresh_token = token_signer.create_refresh_cookie(&user_claim)?;
+
+                    access_token.set_path("/");
+                    refresh_token.set_path("/");
+
                     Ok(HttpResponse::Ok()
-                        .cookie(token_signer.create_access_cookie(&user_claim)?)
-                        .cookie(token_signer.create_refresh_cookie(&user_claim)?)
+                        .cookie(access_token)
+                        .cookie(refresh_token)
                         .finish()
                     )
                 },
