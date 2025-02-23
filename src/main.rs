@@ -13,8 +13,10 @@ use actix_web::body::MessageBody;
 use actix_web::middleware::{Logger};
 use env_logger::Env;
 use crate::endpoints::admin_endpoints::{admin_routes};
+use crate::endpoints::storage_endpoints::storage_routes;
 use crate::endpoints::user_endpoints::{user_routes};
 use crate::services::auth_service::{UserClaims};
+use crate::services::storage_service;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,6 +26,8 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to establish database connection");
 
     env_logger::init_from_env(Env::default().default_filter_or("info"));
+
+    let s3_client = storage_service::create_client().await;
     
     HttpServer::new(move || {
         let public_key = Hs256Key::new(std::env::var("JWT_PUBLIC_KEY").unwrap_or_default().to_string().into_bytes());
@@ -49,8 +53,10 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .app_data(web::Data::new(db.clone()))
+            .app_data(web::Data::new(s3_client.clone()))
             .configure(user_routes)
             .configure(admin_routes)
+            .configure(storage_routes)
             .use_jwt(authority.clone(), web::scope(""))
 
     })
