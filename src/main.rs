@@ -6,10 +6,10 @@ mod dtos;
 
 use actix_jwt_auth_middleware::{Authority, TokenSigner};
 use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
-use actix_web::{ web, App, HttpMessage, HttpServer, ResponseError};
+use actix_web::{ web, App, HttpServer};
 use jwt_compact::alg::{Hs256, Hs256Key};
 use core::time::Duration;
-use actix_web::body::MessageBody;
+use actix_multipart::form::MultipartFormConfig;
 use actix_web::middleware::{Logger};
 use env_logger::Env;
 use crate::endpoints::admin_endpoints::{admin_routes};
@@ -52,6 +52,10 @@ async fn main() -> std::io::Result<()> {
         
         App::new()
             .wrap(Logger::default())
+            .app_data(
+                MultipartFormConfig::
+                total_limit(Default::default(), 1024*1024*100).memory_limit(1024*1024*5)
+            )
             .app_data(web::Data::new(db.clone()))
             .app_data(web::Data::new(s3_client.clone()))
             .configure(user_routes)

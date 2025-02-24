@@ -1,6 +1,8 @@
-use actix_web::{get, post, web, HttpRequest, HttpResponse};
+use actix_multipart::form::MultipartForm;
+use actix_web::{get, post, web, HttpResponse};
 use aws_sdk_s3 as s3;
 use crate::services::storage_service;
+use crate::services::storage_service::UploadForm;
 
 pub fn storage_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -13,10 +15,9 @@ pub fn storage_routes(cfg: &mut web::ServiceConfig) {
 #[post("/upload/video")]
 pub async fn upload_file(
     client: web::Data<s3::Client>,
-    payload: web::Payload,
-    request: HttpRequest
+    MultipartForm(form): MultipartForm<UploadForm>,
 ) -> HttpResponse {
-    storage_service::upload_video(client, request, payload).await
+    storage_service::upload_video(client, MultipartForm(form)).await
         .unwrap_or(HttpResponse::InternalServerError().finish())
 }
 
