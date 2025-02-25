@@ -4,18 +4,15 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "Users")]
+#[sea_orm(table_name = "Groups")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
-    #[sea_orm(column_type = "Text", nullable, unique)]
-    pub username: Option<String>,
     #[sea_orm(column_type = "Text", unique)]
-    pub email: String,
+    pub name: String,
     #[sea_orm(column_type = "Text", nullable)]
     pub password: Option<String>,
     pub created_at: DateTimeWithTimeZone,
-    #[sea_orm(column_name = "isDeleted")]
     pub is_deleted: bool,
 }
 
@@ -23,11 +20,28 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::group_user::Entity")]
     GroupUser,
+    #[sea_orm(has_many = "super::group_video::Entity")]
+    GroupVideo,
 }
 
 impl Related<super::group_user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::GroupUser.def()
+    }
+}
+
+impl Related<super::group_video::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::GroupVideo.def()
+    }
+}
+
+impl Related<super::videos::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::group_video::Relation::Videos.def()
+    }
+    fn via() -> Option<RelationDef> {
+        Some(super::group_video::Relation::Groups.def().rev())
     }
 }
 

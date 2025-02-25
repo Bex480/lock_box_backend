@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::{error, web, Error, HttpMessage, HttpRequest, HttpResponse};
@@ -9,6 +10,11 @@ use aws_sdk_s3::operation::create_multipart_upload::CreateMultipartUploadOutput;
 use aws_sdk_s3::types::{ChecksumMode, CompletedMultipartUpload, CompletedPart};
 use futures_util::stream::StreamExt;
 use aws_smithy_types::byte_stream::{ByteStream, Length};
+use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, DatabaseConnection};
+use crate::entities::videos;
+use crate::services;
+use crate::services::group_service;
 
 pub async fn create_client() -> s3::Client {
     dotenv::dotenv().ok();
@@ -85,11 +91,26 @@ const MAX_CHUNKS: u64 = 10000;
 
 pub async fn upload_video(
     client: web::Data<s3::Client>,
-    MultipartForm(form): MultipartForm<UploadForm>
+    MultipartForm(form): MultipartForm<UploadForm>,
+    db: web::Data<DatabaseConnection>,
+    group_id: web::Path<i64>,
 ) -> Result<HttpResponse, Error> {
 
     let bucket_name = std::env::var("VIDEO_STORAGE_BUCKET").expect("BUCKET_NAME");
     let key = generate_random_key("mp4");
+
+    let video = videos::ActiveModel {
+        name: Set(form.file.file_name.unwrap_or_default().clone()),
+        key: Set(key.clone()),
+        ..Default::default()
+    };
+
+    let inserted_video = match video.insert(db.as_ref()).await {
+        Ok(video) => video,
+        Err(_) => return Ok(HttpResponse::InternalServerError().body("Failed to insert video!")),
+    };
+
+    group_service::add_video_to_group(group_id.into_inner(), inserted_video.id, db.clone()).await?;
 
     let multipart_upload_res: CreateMultipartUploadOutput = client
         .create_multipart_upload()

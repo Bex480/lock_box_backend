@@ -3,10 +3,13 @@ use actix_web::{web, HttpResponse};
 use jwt_compact::alg::Hs256;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, IntoActiveModel};
 use sea_orm::ActiveValue::Set;
+use crate::dtos::group_dto::JoinGroup;
 use crate::dtos::user_dto::{UserLogin, UserResponse};
-use crate::entities::users;
+use crate::entities::{groups, users};
 use crate::services::auth_service::{Role, UserClaims};
 use crate::services::hash_service;
+use crate::entities::group_user;
+use crate::services::hash_service::verify_password;
 
 pub async fn create_user(
     db: web::Data<DatabaseConnection>,
@@ -126,5 +129,42 @@ pub async fn modify_user_state(
         },
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+pub async fn join_group(
+    db: web::Data<DatabaseConnection>,
+    group_id: web::Path<i64>,
+    join_group: web::Json<JoinGroup>,
+    user_claims: UserClaims,
+) -> HttpResponse {
+    let db = db.get_ref();
+    let group_id = group_id.into_inner();
+
+    let group = groups::Entity::find()
+        .filter(groups::Column::Id.eq(group_id))
+        .one(db)
+        .await;
+
+    match group {
+        Ok(Some(group)) => {
+            match verify_password(&join_group.password, &group.password.unwrap_or_default()).await {
+                Ok(true) => (),
+                _ => return HttpResponse::Forbidden().finish(),
+            }
+        }
+        Ok(None) => return HttpResponse::NotFound().finish(),
+        Err(_) => return HttpResponse::InternalServerError().finish(),
+    }
+
+    let entity = group_user::ActiveModel {
+        group_id: Set(group_id),
+        user_id: Set(user_claims.id),
+        ..Default::default()
+    };
+
+    match entity.insert(db).await {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().body("Failed to join group"),
     }
 }

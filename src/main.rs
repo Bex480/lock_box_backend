@@ -13,6 +13,7 @@ use actix_multipart::form::MultipartFormConfig;
 use actix_web::middleware::{Logger};
 use env_logger::Env;
 use crate::endpoints::admin_endpoints::{admin_routes};
+use crate::endpoints::group_endpoints::group_routes;
 use crate::endpoints::storage_endpoints::storage_routes;
 use crate::endpoints::user_endpoints::{user_routes};
 use crate::services::auth_service::{UserClaims};
@@ -39,8 +40,8 @@ async fn main() -> std::io::Result<()> {
                 TokenSigner::new()
                     .signing_key(private_key.clone())
                     .algorithm(Hs256)
-                    .access_token_lifetime(Duration::new(60, 0))
-                    .refresh_token_lifetime(Duration::new(3600, 0))
+                    .access_token_lifetime(Duration::new(3600, 0))
+                    .refresh_token_lifetime(Duration::new(3600*24, 0))
                     .build()
                     .expect("Failed to build Authority!"),
             ))
@@ -54,13 +55,14 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .app_data(
                 MultipartFormConfig::
-                total_limit(Default::default(), 1024*1024*100).memory_limit(1024*1024*5)
+                total_limit(Default::default(), 1024*1024*512).memory_limit(1024*1024*5)
             )
             .app_data(web::Data::new(db.clone()))
             .app_data(web::Data::new(s3_client.clone()))
             .configure(user_routes)
             .configure(admin_routes)
             .configure(storage_routes)
+            .configure(group_routes)
             .use_jwt(authority.clone(), web::scope(""))
 
     })
