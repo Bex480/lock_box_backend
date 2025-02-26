@@ -7,6 +7,7 @@ use actix_web::middleware::Next;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use jsonwebtoken::Algorithm::HS256;
 use serde::{Deserialize, Serialize};
+use shuttle_runtime::SecretStore;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
 pub struct UserClaims {
@@ -86,7 +87,6 @@ impl FromRequest for UserClaims {
 }
 
 pub async fn get_claim(token: &String) -> Result<UserClaims, actix_web::Error> {
-    dotenv::dotenv().ok();
     let decoded_token = decode::<UserClaims>(
         token,
         &DecodingKey::from_secret(std::env::var("JWT_PRIVATE_KEY").unwrap_or_default().to_string().as_ref()),

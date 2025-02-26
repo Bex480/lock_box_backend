@@ -1,8 +1,6 @@
-use std::ops::Deref;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::{error, web, Error, HttpMessage, HttpRequest, HttpResponse};
-
 use aws_config::Region;
 use aws_sdk_s3::config::Credentials;
 use aws_sdk_s3 as s3;
@@ -12,15 +10,14 @@ use futures_util::stream::StreamExt;
 use aws_smithy_types::byte_stream::{ByteStream, Length};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, DatabaseConnection};
+use shuttle_runtime::SecretStore;
 use crate::entities::videos;
-use crate::services;
 use crate::services::group_service;
 
-pub async fn create_client() -> s3::Client {
-    dotenv::dotenv().ok();
-    let access_token_id = std::env::var("AWS_ACCESS_KEY_ID").expect("ACCESS_TOKEN_ID");
-    let secret_access_key = std::env::var("AWS_SECRET_ACCESS_KEY").expect("SECRET_ACCESS_KEY");
-    let endpoint_url = std::env::var("AWS_ENDPOINT_URL").expect("ENDPOINT_URL");
+pub async fn create_client(secrets: SecretStore) -> s3::Client {
+    let access_token_id = secrets.get("AWS_ACCESS_KEY_ID").expect("ACCESS_TOKEN_ID");
+    let secret_access_key = secrets.get("AWS_SECRET_ACCESS_KEY").expect("SECRET_ACCESS_KEY");
+    let endpoint_url = secrets.get("AWS_ENDPOINT_URL").expect("ENDPOINT_URL");
 
     let credentials = Credentials::new(
         access_token_id,
@@ -57,7 +54,6 @@ pub async fn serve_video(
     client: web::Data<s3::Client>,
     key: web::Path<String>,
 ) -> Result<HttpResponse, Error> {
-    dotenv::dotenv().ok();
 
     let bucket_name = std::env::var("VIDEO_STORAGE_BUCKET").expect("BUCKET_NAME");
 

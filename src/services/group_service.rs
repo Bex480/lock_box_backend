@@ -1,11 +1,9 @@
 use actix_web::{error, web, HttpResponse};
-use aws_sdk_s3::types::Type::Group;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, LoaderTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
 use crate::dtos::group_dto::CreateGroupForm;
-use crate::entities;
-use crate::entities::{group_video, groups, videos};
-use crate::entities::prelude::{Groups, GroupVideo, Videos};
+use crate::entities::{group_video, groups};
+use crate::entities::prelude::{GroupVideo, Videos};
 
 pub async fn create_group(
     db: web::Data<DatabaseConnection>,
