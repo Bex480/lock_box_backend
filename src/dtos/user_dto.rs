@@ -12,3 +12,10 @@ pub struct UserLogin {
     pub email: String,
     pub password: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, FromRequest)]
+pub struct UserRegister {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+}

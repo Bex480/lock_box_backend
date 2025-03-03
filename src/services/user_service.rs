@@ -4,7 +4,7 @@ use jwt_compact::alg::Hs256;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, IntoActiveModel};
 use sea_orm::ActiveValue::Set;
 use crate::dtos::group_dto::JoinGroup;
-use crate::dtos::user_dto::{UserLogin, UserResponse};
+use crate::dtos::user_dto::{UserLogin, UserRegister, UserResponse};
 use crate::entities::{groups, users};
 use crate::services::auth_service::{Role, UserClaims};
 use crate::services::hash_service;
@@ -13,13 +13,13 @@ use crate::services::hash_service::verify_password;
 
 pub async fn create_user(
     db: web::Data<DatabaseConnection>,
-    new_user: web::Json<users::Model>
+    new_user: web::Json<UserRegister>
 ) -> HttpResponse {
     let db = db.get_ref();
     let user = users::ActiveModel {
-        username: Set(new_user.username.clone()),
+        username: Set(Some(new_user.username.clone())),
         email: Set(new_user.email.clone()),
-        password: Set(new_user.password.clone()),
+        password: Set(Some(new_user.password.clone())),
         ..Default::default()
     };
     

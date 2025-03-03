@@ -4,8 +4,7 @@ use actix_web::middleware::from_fn;
 use jwt_compact::alg::Hs256;
 use sea_orm::DatabaseConnection;
 use crate::dtos::group_dto::JoinGroup;
-use crate::dtos::user_dto::UserLogin;
-use crate::entities::users;
+use crate::dtos::user_dto::{UserLogin, UserRegister};
 use crate::services::{hash_service, user_service};
 use crate::services::auth_service::{is_registered, Role, UserClaims};
 
@@ -26,16 +25,16 @@ pub fn user_routes(cfg: &mut web::ServiceConfig) {
 #[post("/register")]
 pub async fn register_user(
     db: web::Data<DatabaseConnection>, 
-    new_user: web::Json<users::Model>
+    new_user: web::Json<UserRegister>
 ) -> impl Responder {
     let password = new_user.password.clone();
-    let hashed_password =  match hash_service::hash_password(&password.unwrap_or_default()).await {
+    let hashed_password =  match hash_service::hash_password(&password).await {
         Ok(hashed_password) => hashed_password,
         Err(error) => return error
     };
 
     let mut user = new_user.into_inner();
-    user.password = Some(hashed_password);
+    user.password = hashed_password;
 
     user_service::create_user(db, web::Json(user)).await
 }
